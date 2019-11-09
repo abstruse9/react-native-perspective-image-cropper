@@ -3,8 +3,11 @@ package fr.michaelvilleneuve.customcrop;
 
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.net.Uri;
+import android.os.Debug;
 import android.provider.MediaStore;
 import android.util.Base64;
+import android.util.Log;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -19,6 +22,7 @@ import org.opencv.android.Utils;
 import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
+import org.opencv.core.MatOfByte;
 import org.opencv.core.MatOfInt;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.MatOfPoint2f;
@@ -32,6 +36,7 @@ import org.opencv.imgproc.Imgproc;
 
 import org.opencv.calib3d.Calib3d;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.util.ArrayList;
@@ -44,74 +49,103 @@ import java.util.List;
 
 public class RNCustomCropModule extends ReactContextBaseJavaModule {
 
-  private final ReactApplicationContext reactContext;
+    private final ReactApplicationContext reactContext;
 
-  public RNCustomCropModule(ReactApplicationContext reactContext) {
-    super(reactContext);
-    OpenCVLoader.initDebug();
-    this.reactContext = reactContext;
-  }
+    public RNCustomCropModule(ReactApplicationContext reactContext) {
+        super(reactContext);
+        OpenCVLoader.initDebug();
+        this.reactContext = reactContext;
+    }
 
-  @Override
-  public String getName() {
-    return "CustomCropManager";
-  }
+    @Override
+    public String getName() {
+        return "CustomCropManager";
+    }
 
-  @ReactMethod
-  public void crop(ReadableMap points, String imageUri, Callback callback) {
 
-    Point tl = new Point(points.getMap("topLeft").getDouble("x"), points.getMap("topLeft").getDouble("y"));
-    Point tr = new Point(points.getMap("topRight").getDouble("x"), points.getMap("topRight").getDouble("y"));
-    Point bl = new Point(points.getMap("bottomLeft").getDouble("x"), points.getMap("bottomLeft").getDouble("y"));
-    Point br = new Point(points.getMap("bottomRight").getDouble("x"), points.getMap("bottomRight").getDouble("y"));
+    @ReactMethod
+    public void crop(ReadableMap points, String imageUri, Callback callback) {
 
-    Mat src = Imgcodecs.imread(imageUri.replace("file://", ""), Imgproc.COLOR_BGR2RGB);
-    Imgproc.cvtColor(src, src, Imgproc.COLOR_BGR2RGB);
+        Point tl = new Point(points.getMap("topLeft").getDouble("x"), points.getMap("topLeft").getDouble("y"));
+        Point tr = new Point(points.getMap("topRight").getDouble("x"), points.getMap("topRight").getDouble("y"));
+        Point bl = new Point(points.getMap("bottomLeft").getDouble("x"), points.getMap("bottomLeft").getDouble("y"));
+        Point br = new Point(points.getMap("bottomRight").getDouble("x"), points.getMap("bottomRight").getDouble("y"));
 
-    boolean ratioAlreadyApplied = tr.x * (src.size().width / 500) < src.size().width;
-    double ratio = ratioAlreadyApplied ? src.size().width / 500 : 1;
+        Mat src;
+        Boolean isFile = imageUri.matches("file.*");
 
-    double widthA = Math.sqrt(Math.pow(br.x - bl.x, 2) + Math.pow(br.y - bl.y, 2));
-    double widthB = Math.sqrt(Math.pow(tr.x - tl.x, 2) + Math.pow(tr.y - tl.y, 2));
+        Log.d("RNCustomCropModule", "File is" + imageUri);
 
-    double dw = Math.max(widthA, widthB) * ratio;
-    int maxWidth = Double.valueOf(dw).intValue();
+        if (isFile) {
+            Log.d("RNCustomCropModule", "IT IS FILE");
+            src = Imgcodecs.imread(imageUri.replace("file://", ""), Imgproc.COLOR_BGR2RGB);
+        } else {
+            Log.d("RNCustomCropModule", "IT IS BASE64");
+            String strImg = imageUri.replace("data:image/jpeg;base64,", "");
+            byte[] imgByteArray = Base64.decode(strImg, Base64.DEFAULT);
+            Log.d("RNCustomCropModule", String.valueOf(imgByteArray.length) + "awdiojwaidj");
 
-    double heightA = Math.sqrt(Math.pow(tr.x - br.x, 2) + Math.pow(tr.y - br.y, 2));
-    double heightB = Math.sqrt(Math.pow(tl.x - bl.x, 2) + Math.pow(tl.y - bl.y, 2));
+            src = Imgcodecs.imdecode(new MatOfByte(imgByteArray), Imgcodecs.CV_LOAD_IMAGE_UNCHANGED);
+        }
 
-    double dh = Math.max(heightA, heightB) * ratio;
-    int maxHeight = Double.valueOf(dh).intValue();
+//        Log.d("RNCustomCropModule", strImg);
+//        Mat src = new Mat(4000, 3000, CvType.CV_8UC1);
+//        src.put(0, 0, imgByteArray);
+//
+//        Bitmap sourceImage = BitmapFactory.decodeByteArray(decodedString, 0, decodedString.length, new BitmapFactory.Options());
+//        Mat src = Imgcodecs.imread(sourceImage, Imgproc.COLOR_BGR2RGB);
+//
+//        Mat src = Imgcodecs.imread(imageUri.replace("file://", ""), Imgproc.COLOR_BGR2RGB);
+//
+//        src = Imgcodecs.imdecode(new MatOfByte(imgByteArray), Imgcodecs.CV_LOAD_IMAGE_UNCHANGED);
 
-    Mat doc = new Mat(maxHeight, maxWidth, CvType.CV_8UC4);
 
-    Mat src_mat = new Mat(4, 1, CvType.CV_32FC2);
-    Mat dst_mat = new Mat(4, 1, CvType.CV_32FC2);
+        Imgproc.cvtColor(src, src, Imgproc.COLOR_BGR2RGB);
 
-    src_mat.put(0, 0, tl.x * ratio, tl.y * ratio, tr.x * ratio, tr.y * ratio, br.x * ratio, br.y * ratio, bl.x * ratio,
-        bl.y * ratio);
-    dst_mat.put(0, 0, 0.0, 0.0, dw, 0.0, dw, dh, 0.0, dh);
+        boolean ratioAlreadyApplied = tr.x * (src.size().width / 500) < src.size().width;
+        double ratio = ratioAlreadyApplied ? src.size().width / 500 : 1;
 
-    Mat m = Imgproc.getPerspectiveTransform(src_mat, dst_mat);
+        double widthA = Math.sqrt(Math.pow(br.x - bl.x, 2) + Math.pow(br.y - bl.y, 2));
+        double widthB = Math.sqrt(Math.pow(tr.x - tl.x, 2) + Math.pow(tr.y - tl.y, 2));
 
-    Imgproc.warpPerspective(src, doc, m, doc.size());
+        double dw = Math.max(widthA, widthB) * ratio;
+        int maxWidth = Double.valueOf(dw).intValue();
 
-    // custom code
-    Imgproc.cvtColor(doc, doc, Imgproc.COLOR_RGBA2GRAY);
-    Imgproc.adaptiveThreshold(doc, doc, 255, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 15, 40);
+        double heightA = Math.sqrt(Math.pow(tr.x - br.x, 2) + Math.pow(tr.y - br.y, 2));
+        double heightB = Math.sqrt(Math.pow(tl.x - bl.x, 2) + Math.pow(tl.y - bl.y, 2));
 
-    Bitmap bitmap = Bitmap.createBitmap(doc.cols(), doc.rows(), Bitmap.Config.ARGB_8888);
-    Utils.matToBitmap(doc, bitmap);
+        double dh = Math.max(heightA, heightB) * ratio;
+        int maxHeight = Double.valueOf(dh).intValue();
 
-    ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-    bitmap.compress(Bitmap.CompressFormat.JPEG, 70, byteArrayOutputStream);
-    byte[] byteArray = byteArrayOutputStream.toByteArray();
+        Mat doc = new Mat(maxHeight, maxWidth, CvType.CV_8UC4);
 
-    WritableMap map = Arguments.createMap();
-    map.putString("image", Base64.encodeToString(byteArray, Base64.DEFAULT));
-    callback.invoke(null, map);
+        Mat src_mat = new Mat(4, 1, CvType.CV_32FC2);
+        Mat dst_mat = new Mat(4, 1, CvType.CV_32FC2);
 
-    m.release();
-  }
+        src_mat.put(0, 0, tl.x * ratio, tl.y * ratio, tr.x * ratio, tr.y * ratio, br.x * ratio, br.y * ratio, bl.x * ratio,
+                bl.y * ratio);
+        dst_mat.put(0, 0, 0.0, 0.0, dw, 0.0, dw, dh, 0.0, dh);
+
+        Mat m = Imgproc.getPerspectiveTransform(src_mat, dst_mat);
+
+        Imgproc.warpPerspective(src, doc, m, doc.size());
+
+        // custom code
+        Imgproc.cvtColor(doc, doc, Imgproc.COLOR_RGBA2GRAY);
+        Imgproc.adaptiveThreshold(doc, doc, 255, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 15, 40);
+
+        Bitmap bitmap = Bitmap.createBitmap(doc.cols(), doc.rows(), Bitmap.Config.ARGB_8888);
+        Utils.matToBitmap(doc, bitmap);
+
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 70, byteArrayOutputStream);
+        byte[] byteArray = byteArrayOutputStream.toByteArray();
+
+        WritableMap map = Arguments.createMap();
+        map.putString("image", Base64.encodeToString(byteArray, Base64.DEFAULT));
+        callback.invoke(null, map);
+
+        m.release();
+    }
 
 }
