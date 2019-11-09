@@ -94,6 +94,10 @@ public class RNCustomCropModule extends ReactContextBaseJavaModule {
 
     Imgproc.warpPerspective(src, doc, m, doc.size());
 
+    // custom code
+    Imgproc.cvtColor(doc, doc, Imgproc.COLOR_RGBA2GRAY);
+    Imgproc.adaptiveThreshold(doc, doc, 255, Imgproc.ADAPTIVE_THRESH_MEAN_C, Imgproc.THRESH_BINARY, 15, 40);
+
     Bitmap bitmap = Bitmap.createBitmap(doc.cols(), doc.rows(), Bitmap.Config.ARGB_8888);
     Utils.matToBitmap(doc, bitmap);
 
