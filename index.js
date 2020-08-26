@@ -100,25 +100,34 @@ class CustomCrop extends Component {
     }
 
     crop() {
-        const coordinates = {
-            topLeft: this.viewCoordinatesToImageCoordinates(this.state.topLeft),
-            topRight: this.viewCoordinatesToImageCoordinates(
-                this.state.topRight
-            ),
-            bottomLeft: this.viewCoordinatesToImageCoordinates(
-                this.state.bottomLeft
-            ),
-            bottomRight: this.viewCoordinatesToImageCoordinates(
-                this.state.bottomRight
-            ),
-            height: this.state.height,
-            width: this.state.width,
-        };
-        NativeModules.CustomCropManager.crop(
-            coordinates,
-            this.state.image,
-            (err, res) => this.props.updateImage(res.image, coordinates)
-        );
+        try {
+            const coordinates = {
+                topLeft: this.viewCoordinatesToImageCoordinates(
+                    this.state.topLeft
+                ),
+                topRight: this.viewCoordinatesToImageCoordinates(
+                    this.state.topRight
+                ),
+                bottomLeft: this.viewCoordinatesToImageCoordinates(
+                    this.state.bottomLeft
+                ),
+                bottomRight: this.viewCoordinatesToImageCoordinates(
+                    this.state.bottomRight
+                ),
+                height: this.state.height,
+                width: this.state.width,
+            };
+            NativeModules.CustomCropManager.crop(
+                coordinates,
+                this.state.image,
+                (err, res) => {
+                    console.log("[CustomCropManager]", err);
+                    this.props.updateImage(res.image, coordinates);
+                }
+            );
+        } catch (err) {
+            console.log("[CustomCropManager]", err);
+        }
     }
 
     updateOverlayString() {
